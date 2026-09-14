@@ -5,11 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WIDTH 1000
-#define HEIGHT 1000
-#define PPM_SCALAR 5
-#define RECT_SAMPLE_SIZE 10
-#define CIRCLE_SAMPLE_SIZE 10
+#define WIDTH 20
+#define HEIGHT 20
+#define PPM_SCALAR 30
+#define RECT_TRAIN_SAMPLE_SIZE 91
+#define CIRCLE_TRAIN_SAMPLE_SIZE 78
+#define BIAS 20
 
 typedef float Layer[HEIGHT][WIDTH];
 
@@ -57,6 +58,19 @@ void layer_fill_circle(Layer layer, int cx, int cy, int radius, float value) {
 }
 
 void layer_save_as_ppm(Layer layer, const char *file_path) {
+  float min = layer[0][0];
+  float max = layer[0][0];
+
+  for (int y = 0; y < HEIGHT; ++y) {
+    for (int x = 0; x < WIDTH; ++x) {
+      float s = layer[y][x];
+      if (s < min)
+        min = s;
+      if (s > max)
+        max = s;
+    }
+  }
+
   FILE *f = fopen(file_path, "wb");
 
   if (f == NULL) {
@@ -67,10 +81,21 @@ void layer_save_as_ppm(Layer layer, const char *file_path) {
 
   fprintf(f, "P6\n%d %d\n255\n", WIDTH * PPM_SCALAR, HEIGHT * PPM_SCALAR);
 
+  char pixel[3] = {0.0f, 0.0f, 0.0f};
+
   for (int y = 0; y < HEIGHT * PPM_SCALAR; ++y) {
     for (int x = 0; x < WIDTH * PPM_SCALAR; ++x) {
       float s = layer[y / PPM_SCALAR][x / PPM_SCALAR];
-      char pixel[3] = {(char)floorf(s * 255), 0, 0};
+
+      float r = 0.0f;
+      float b = 0.0f;
+      if (s >= 0) {
+        r = s / max;
+      } else {
+        b = s / min;
+      }
+      pixel[0] = (char)(r * 255.0f);
+      pixel[2] = (char)(b * 255.0f);
 
       fwrite(pixel, sizeof(pixel), 1, f);
     }
@@ -92,9 +117,18 @@ void layer_save_as_bin(Layer layer, const char *file_path) {
   fclose(f);
 }
 
-// void layser_load_as_bin(Layer layer, const char *file_path) {
-//   assert(0 && "TODO: layser_load_as_bin is not implemented");
-// }
+void layser_load_as_bin(Layer layer, const char *file_path) {
+  FILE *f = fopen(file_path, "rb");
+  if (f == NULL) {
+    fprintf(stderr, "Error: Could not open file %s: %s\n", file_path,
+            strerror(errno));
+    exit(1);
+  }
+
+  fread(layer, sizeof(Layer), 1, f);
+
+  fclose(f);
+}
 
 float feed_forward(Layer inputs, Layer weights) {
   float output = 0.0f;
@@ -108,11 +142,28 @@ float feed_forward(Layer inputs, Layer weights) {
   return output;
 }
 
-static Layer inputs;
-// static Layer weights;
+void add_inputs_to_weights(Layer inputs, Layer weights) {
+  for (int y = 0; y < HEIGHT; ++y) {
+    for (int x = 0; x < WIDTH; ++x) {
+      weights[y][x] += inputs[y][x];
+    }
+  }
+}
+
+void subtract_inputs_from_weights(Layer inputs, Layer weights) {
+  for (int y = 0; y < HEIGHT; ++y) {
+    for (int x = 0; x < WIDTH; ++x) {
+      weights[y][x] -= inputs[y][x];
+    }
+  }
+}
 
 int rand_range(int min, int max) {
-  assert(min < max);
+  assert(min <= max);
+
+  if (min == max) {
+    return min;
+  }
   return min + rand() % (max - min);
 }
 
@@ -136,26 +187,85 @@ void layer_random_circle(Layer layer) {
   layer_fill_circle(layer, cx, cy, radius, 1.0f);
 }
 
-int main(void) {
+static Layer inputs;
+static Layer weights;
+
+void gen_train_set() {
+  system("mkdir -p train/rect/bin");
+  system("mkdir -p train/rect/ppm");
+  system("mkdir -p train/circle/bin");
+  system("mkdir -p train/circle/ppm");
+
   char file_path[256];
 
-  for (int i = 0; i < RECT_SAMPLE_SIZE; ++i) {
+  for (int i = 0; i < RECT_TRAIN_SAMPLE_SIZE; ++i) {
     printf("[INFO] Generating rect %d\n", i);
     layer_random_rect(inputs);
-    snprintf(file_path, sizeof(file_path), "rect-%02d.bin", i);
+    snprintf(file_path, sizeof(file_path), "train/rect/bin/rect-%02d.bin", i);
     layer_save_as_bin(inputs, file_path);
-    snprintf(file_path, sizeof(file_path), "rect-%02d.ppm", i);
+    snprintf(file_path, sizeof(file_path), "train/rect/ppm/rect-%02d.ppm", i);
     layer_save_as_ppm(inputs, file_path);
   }
 
-  for (int i = 0; i < CIRCLE_SAMPLE_SIZE; ++i) {
+  for (int i = 0; i < RECT_TRAIN_SAMPLE_SIZE; ++i) {
     printf("[INFO] Generating circle %d\n", i);
     layer_random_circle(inputs);
-    snprintf(file_path, sizeof(file_path), "circle-%02d.bin", i);
+    snprintf(file_path, sizeof(file_path), "train/circle/bin/circle-%02d.bin",
+             i);
     layer_save_as_bin(inputs, file_path);
-    snprintf(file_path, sizeof(file_path), "circle-%02d.ppm", i);
+    snprintf(file_path, sizeof(file_path), "train/circle/ppm/circle-%02d.ppm",
+             i);
     layer_save_as_ppm(inputs, file_path);
   }
+}
+
+void train() {
+  int rect_count = 0;
+  int circle_count = 0;
+
+  int choice = 0;
+  int real = 0;
+  char file_path[256];
+
+  for (int i = 0; i < RECT_TRAIN_SAMPLE_SIZE + CIRCLE_TRAIN_SAMPLE_SIZE; ++i) {
+    choice = rand() % 2;
+
+    if (circle_count >= CIRCLE_TRAIN_SAMPLE_SIZE || choice == 0) {
+      snprintf(file_path, sizeof(file_path), "train/rect/bin/rect-%02d.bin",
+               rect_count);
+      layser_load_as_bin(inputs, file_path);
+      rect_count++;
+      real = 0;
+    } else {
+      snprintf(file_path, sizeof(file_path), "train/circle/bin/circle-%02d.bin",
+               circle_count);
+      layser_load_as_bin(inputs, file_path);
+      circle_count++;
+      real = 1;
+    }
+
+    printf("[TRAIN] Train on %s\n", file_path);
+
+    float res = feed_forward(inputs, weights);
+
+    if (res > BIAS && real == 0) {
+      subtract_inputs_from_weights(inputs, weights);
+      printf("[TRAIN] Subtract from weights on %s\n", file_path);
+    } else if (res < BIAS && real == 1) {
+      add_inputs_to_weights(inputs, weights);
+      printf("[TRAIN] Add to weights on %s\n", file_path);
+    }
+  }
+
+  layer_save_as_ppm(weights, "weights.ppm");
+}
+
+int main(void) {
+  srand(69);
+
+  gen_train_set();
+
+  train();
 
   return 0;
 }
