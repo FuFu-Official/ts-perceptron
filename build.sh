@@ -2,4 +2,4 @@
 
 set -xe
 
-cc -Wall -Wextra -Werror -ggdb -o main main.c -lm
+cc -Wall -Wextra -Werror -ggdb -o perceptron main.c -lm
