@@ -10,8 +10,10 @@
 #define PPM_SCALAR 30
 #define RECT_TRAIN_SAMPLE_SIZE 91
 #define CIRCLE_TRAIN_SAMPLE_SIZE 78
+#define RECT_VAL_SAMPLE_SIZE 26
+#define CIRCLE_VAL_SAMPLE_SIZE 32
 #define BIAS 20
-#define TRAIN_PASS_COUNT 40
+#define TRAIN_ITERATIONS 40
 
 typedef float Layer[HEIGHT][WIDTH];
 
@@ -223,7 +225,8 @@ void gen_layer_set(int rect_size, int circle_size, const char *output_dir) {
   }
 }
 
-int train_pass() {
+int train_pass(char *dir, int rect_train_sample_size,
+               int circle_train_sample_size) {
   int rect_count = 0;
   int circle_count = 0;
 
@@ -233,24 +236,24 @@ int train_pass() {
 
   int cnt = 0;
 
-  for (int i = 0; i < RECT_TRAIN_SAMPLE_SIZE + CIRCLE_TRAIN_SAMPLE_SIZE; ++i) {
+  for (int i = 0; i < rect_train_sample_size + circle_train_sample_size; ++i) {
     choice = rand() % 2;
 
-    if (rect_count >= RECT_TRAIN_SAMPLE_SIZE) {
+    if (rect_count >= rect_train_sample_size) {
       choice = 1;
-    } else if (circle_count >= CIRCLE_TRAIN_SAMPLE_SIZE) {
+    } else if (circle_count >= circle_train_sample_size) {
       choice = 0;
     }
 
     if (choice == 0) {
-      snprintf(file_path, sizeof(file_path), "train/rect/bin/rect-%02d.bin",
+      snprintf(file_path, sizeof(file_path), "%srect/bin/rect-%02d.bin", dir,
                rect_count);
       layser_load_as_bin(inputs, file_path);
       rect_count++;
       real = 0;
     } else {
-      snprintf(file_path, sizeof(file_path), "train/circle/bin/circle-%02d.bin",
-               circle_count);
+      snprintf(file_path, sizeof(file_path), "%scircle/bin/circle-%02d.bin",
+               dir, circle_count);
       layser_load_as_bin(inputs, file_path);
       circle_count++;
       real = 1;
@@ -271,7 +274,7 @@ int train_pass() {
     }
   }
 
-  layer_save_as_ppm(weights, "weights.ppm");
+  // layer_save_as_ppm(weights, "weights.ppm");
   return cnt;
 }
 
@@ -280,10 +283,30 @@ int main(void) {
 
   gen_layer_set(RECT_TRAIN_SAMPLE_SIZE, CIRCLE_TRAIN_SAMPLE_SIZE, "train");
 
-  for (int i = 0; i < TRAIN_PASS_COUNT; ++i) {
-    int cnt = train_pass();
-    printf("[PASSES] %d\n", cnt);
+  char file_path[256];
+
+  for (int i = 0; i < TRAIN_ITERATIONS; ++i) {
+    int cnt =
+        train_pass("train/", RECT_TRAIN_SAMPLE_SIZE, CIRCLE_TRAIN_SAMPLE_SIZE);
+    printf("[PASSES] Passes %d：weights updated %d times\n", i, cnt);
+
+    snprintf(file_path, sizeof(file_path), "weights/weights-%02d.ppm", i);
+    layer_save_as_ppm(weights, file_path);
+
+    if (cnt <= 0) {
+      printf("[INFO] Training complete after %d passes\n", i);
+      break;
+    }
   }
+
+  srand(11);
+  gen_layer_set(RECT_VAL_SAMPLE_SIZE, CIRCLE_VAL_SAMPLE_SIZE, "val");
+
+  int failed = train_pass("val/", RECT_VAL_SAMPLE_SIZE, CIRCLE_VAL_SAMPLE_SIZE);
+
+  printf("[RESULT] Model failed for %d/%d times on val set\n", failed,
+         RECT_VAL_SAMPLE_SIZE + CIRCLE_VAL_SAMPLE_SIZE);
+  ;
 
   return 0;
 }
