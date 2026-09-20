@@ -5,10 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WIDTH 100
-#define HEIGHT 100
-#define PPM_SCALAR 25
-#define SAMPLE_SIZE 10
+#define WIDTH 1000
+#define HEIGHT 1000
+#define PPM_SCALAR 5
+#define RECT_SAMPLE_SIZE 10
+#define CIRCLE_SAMPLE_SIZE 10
 
 typedef float Layer[HEIGHT][WIDTH];
 
@@ -115,22 +116,44 @@ int rand_range(int min, int max) {
   return min + rand() % (max - min);
 }
 
+void layer_random_rect(Layer layer) {
+  layer_fill_rect(layer, 0, 0, WIDTH, HEIGHT, 0.0f);
+  int x = rand_range(0, WIDTH);
+  int y = rand_range(0, HEIGHT);
+  int w = rand_range(1, WIDTH - x + 1);
+  int h = rand_range(1, HEIGHT - y + 1);
+  layer_fill_rect(layer, x, y, w, h, 1.0f);
+}
+
+void layer_random_circle(Layer layer) {
+  layer_fill_rect(layer, 0, 0, WIDTH, HEIGHT, 0.0f);
+  int cx = rand_range(0, WIDTH);
+  int cy = rand_range(0, HEIGHT);
+  int max_radius_cand1 = fmin(cx, cy) + 1;
+  int max_radius_cand2 = fmin(WIDTH - cx, HEIGHT - cy) + 1;
+  int max_radius = fmin(max_radius_cand1, max_radius_cand2);
+  int radius = rand_range(1, max_radius);
+  layer_fill_circle(layer, cx, cy, radius, 1.0f);
+}
+
 int main(void) {
   char file_path[256];
 
-  for (int i = 0; i < SAMPLE_SIZE; ++i) {
+  for (int i = 0; i < RECT_SAMPLE_SIZE; ++i) {
     printf("[INFO] Generating rect %d\n", i);
-
-    layer_fill_rect(inputs, 0, 0, WIDTH, HEIGHT, 0.0f);
-    int x = rand_range(0, WIDTH);
-    int y = rand_range(0, HEIGHT);
-    int w = rand_range(1, WIDTH);
-    int h = rand_range(1, HEIGHT);
-    layer_fill_rect(inputs, x, y, w, h, 1.0f);
-
+    layer_random_rect(inputs);
     snprintf(file_path, sizeof(file_path), "rect-%02d.bin", i);
     layer_save_as_bin(inputs, file_path);
     snprintf(file_path, sizeof(file_path), "rect-%02d.ppm", i);
+    layer_save_as_ppm(inputs, file_path);
+  }
+
+  for (int i = 0; i < CIRCLE_SAMPLE_SIZE; ++i) {
+    printf("[INFO] Generating circle %d\n", i);
+    layer_random_circle(inputs);
+    snprintf(file_path, sizeof(file_path), "circle-%02d.bin", i);
+    layer_save_as_bin(inputs, file_path);
+    snprintf(file_path, sizeof(file_path), "circle-%02d.ppm", i);
     layer_save_as_ppm(inputs, file_path);
   }
 
