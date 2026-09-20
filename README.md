@@ -1,4 +1,14 @@
+# Perceptron
+
 ![demo](./demo.gif)
+
+Inspired by video [First Ancient Neural Network in C](https://www.youtube.com/watch?v=WEk_grxrCcg)
+
+- Original Source Code: https://github.com/tsoding/perceptron
+- We're Building Computers Wrong: https://www.youtube.com/watch?v=GVsUOuSjvcg
+- PPM format: https://en.wikipedia.org/wiki/Netpbm
+
+## Preperations
 
 ```sh
 mkdir -p train/circle/bin
