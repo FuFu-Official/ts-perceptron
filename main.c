@@ -13,7 +13,7 @@
 #define RECT_VAL_SAMPLE_SIZE 26
 #define CIRCLE_VAL_SAMPLE_SIZE 32
 #define BIAS 20
-#define TRAIN_ITERATIONS 40
+#define TRAIN_ITERATIONS 60
 
 typedef float Layer[HEIGHT][WIDTH];
 
