@@ -119,7 +119,7 @@ int main(void) {
   char file_path[256];
 
   for (int i = 0; i < SAMPLE_SIZE; ++i) {
-    printf("[INFO] Generating rect %d", i);
+    printf("[INFO] Generating rect %d\n", i);
 
     layer_fill_rect(inputs, 0, 0, WIDTH, HEIGHT, 0.0f);
     int x = rand_range(0, WIDTH);
